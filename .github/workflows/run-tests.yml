@@ -18,7 +18,9 @@ jobs:
           python-version: 3.9
 
       - name: 3. Install FFmpeg
-        run: sudo apt-get install -y ffmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
 
       - name: 4. Install Python packages
         run: pip install -r requirements.txt

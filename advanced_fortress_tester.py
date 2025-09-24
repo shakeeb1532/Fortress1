@@ -56,7 +56,7 @@ def generate_test_file(path, size_mb, file_type):
                 f.write(os.urandom(size_bytes))
 
 def streamed_sha256(file_path):
-    """Calculates SHA256 of a file in chunks to handle large files."""
+    """Calculates SHA26 of a file in chunks to handle large files."""
     hasher = hashlib.sha256()
     with open(file_path, 'rb') as f:
         while chunk := f.read(4 * 1024 * 1024):
@@ -159,7 +159,14 @@ def main():
     
     # Generate keys needed for the test run
     print("\n[SETUP] Generating RSA key pair for tests...")
-    run_command(['python3', 'fortress_mvp.py', 'keygen'])
+    try:
+        run_command(['python3', 'fortress_mvp.py', 'keygen'])
+    except subprocess.CalledProcessError as e:
+        print("!!!!!! KEYGEN COMMAND FAILED !!!!!!")
+        print(f"STDOUT from keygen:\n{e.stdout}")
+        print(f"STDERR from keygen:\n{e.stderr}")
+        sys.exit(1) # Exit with an error code to make the CI job fail
+
     print("[SETUP] Environment ready.")
 
     all_results = []

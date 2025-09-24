@@ -9,6 +9,7 @@ import random
 import string
 import shutil
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
 
 # --- Configuration ---
 # NOTE: The raw video test can be time-consuming. Adjust size_mb for quicker tests.
@@ -156,33 +157,28 @@ def main():
     """Main function to set up environment and run all tests."""
     print("--- Dynamic Cryptographic Fortress: Advanced Test Suite ---")
     
-    # 1. Setup Environment
-    print("\\n[SETUP] Installing dependencies...")
-    try:
-        run_command(['apt-get', 'update'], check=False) # Best effort update
-        run_command(['apt-get', 'install', '-y', 'ffmpeg'])
-        run_command([sys.executable, '-m', 'pip', 'install', 'pycryptodome', 'lz4'])
-        print("[SETUP] Generating RSA key pair for tests...")
-        run_command(['python3', 'fortress_mvp.py', 'keygen'])
-        print("[SETUP] Environment ready.")
-    except (subprocess.CalledProcessError, FileNotFoundError) as e:
-        print(f"[FATAL] Setup failed. Ensure ffmpeg and python3 are installed. Error: {e.stderr if hasattr(e, 'stderr') else e}")
-        return
+    # Generate keys needed for the test run
+    print("\n[SETUP] Generating RSA key pair for tests...")
+    run_command(['python3', 'fortress_mvp.py', 'keygen'])
+    print("[SETUP] Environment ready.")
 
     all_results = []
     
     # 2. Integrity Tests
-    print("\\n--- Running Integrity Test Suite ---")
+    print("\n--- Running Integrity Test Suite ---")
     for config in INTEGRITY_TEST_SUITE:
         print(f"  Testing: {config['name']}...")
         result = run_single_test_case(config)
         all_results.append({**result, "test_type": "Integrity"})
         print(f"    -> Status: {result['status']}, Duration: {result['duration_s']}s")
-        if result['status'] == 'FAIL': print(f"       ERROR: {result['error_details']}")
+        if result['status'] == 'FAIL': 
+            print(f"       ERROR: {result['error_details']}")
+            # Exit with a non-zero code to fail the CI job
+            sys.exit(1)
     print("--- Integrity Test Suite Complete ---")
 
     # 3. Load Test
-    print("\\n--- Running Load Test ---")
+    print("\n--- Running Load Test ---")
     load_start_time = time.time()
     with ThreadPoolExecutor(max_workers=os.cpu_count()) as executor:
         configs = [{**LOAD_TEST_CONFIG, "name": f"Load Job {i+1}"} for i in range(LOAD_TEST_CONFIG["count"])]
@@ -195,7 +191,7 @@ def main():
     print("--- Load Test Complete ---")
 
     # 4. Stress Test
-    print("\\n--- Running Stress Test ---")
+    print("\n--- Running Stress Test ---")
     stress_start_time = time.time()
     with ThreadPoolExecutor(max_workers=os.cpu_count() * 2) as executor:
         configs = [{**STRESS_TEST_CONFIG, "name": f"Stress Job {i+1}"} for i in range(STRESS_TEST_CONFIG["count"])]
@@ -208,7 +204,7 @@ def main():
     print("--- Stress Test Complete ---")
     
     # 5. Generate Reports
-    print("\\n--- Generating Reports ---")
+    print("\n--- Generating Reports ---")
     # Write CSV Report
     with open("test_results.csv", "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=all_results[0].keys())
@@ -239,7 +235,7 @@ def main():
     print("  -> Aggregate summary saved to summary_report.json")
     
     # 6. Final Console Summary
-    print("\\n" + "="*35)
+    print("\n" + "="*35)
     print("      TEST SUITE FINAL SUMMARY")
     print("="*35)
     print(f"  Integrity Tests: {summary['integrity_tests']['passed']}/{summary['integrity_tests']['total']} Passed")
@@ -247,8 +243,14 @@ def main():
     print(f"  Stress Test Throughput: {stress_throughput} MB/s")
     print("="*35)
 
+    # Final check to ensure all integrity tests passed
+    if summary['integrity_tests']['passed'] != summary['integrity_tests']['total']:
+        print("\n[CI-FAIL] One or more integrity tests failed.")
+        sys.exit(1)
+
 if __name__ == "__main__":
     if not os.path.exists("fortress_mvp.py"):
         print("[FATAL] fortress_mvp.py not found. Please place this script in the same directory.")
+        sys.exit(1)
     else:
         main()
